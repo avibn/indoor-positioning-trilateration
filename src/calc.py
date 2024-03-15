@@ -114,11 +114,15 @@ def get_position(
 
 
 if __name__ == "__main__":
-    # RSSI values
-    rssi_1 = -88
-    rssi_2 = -86
-    rssi_3 = -69
+    # # RSSI values
+    # rssi_1 = -88
+    # rssi_2 = -86
+    # rssi_3 = -69
 
-    # Get estimated position
-    x, y = get_position((0, 0), (0, 10), (10, 0), rssi_1, rssi_2, rssi_3)
-    print(f"Estimated Position: ({x}, {y}) in a 32x32 grid")
+    # # Get estimated position
+    # x, y = get_position((0, 0), (0, 10), (10, 0), rssi_1, rssi_2, rssi_3)
+    # print(f"Estimated Position: ({x}, {y}) in a 32x32 grid")
+
+    rssi = -40
+    d  = __rssi_to_distance(rssi) * 100
+    print(d)
