@@ -25,8 +25,10 @@ counter = 0
 addresses_to_filter = {"92c850cceee8"}
 
 
-while True:
-    for advertisement in ble.start_scan(ProvideServicesAdvertisement, Advertisement):
+def start_scan():
+    for advertisement in ble.start_scan(
+        ProvideServicesAdvertisement, Advertisement, interval=1
+    ):
         addr_bytes = advertisement.address.address_bytes
         addr_str = "".join("{:02x}".format(b) for b in addr_bytes).lower()
 
@@ -39,8 +41,16 @@ while True:
                 day, month, year, hour, mins, secs
             )
             print(addr_str, current_time_str, "RSSI:", advertisement.rssi)
-            break
+            ble.stop_scan()
 
-    ble.stop_scan()  # Ensure scanning is stopped before continuing
+    # ble.stop_scan()  # Ensure scanning is stopped before continuing
     print("Scan done.")
-    time.sleep(2)
+
+
+while True:
+    try:
+        start_scan()
+    except OSError as e:
+        print("Failed to scan: ", e)
+        continue
+    time.sleep(5)
