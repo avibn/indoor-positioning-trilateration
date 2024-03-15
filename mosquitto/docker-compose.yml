@@ -1,0 +1,16 @@
+version: "3.7"
+services:
+    mosquitto:
+        image: eclipse-mosquitto:2.0.18
+        ports:
+            - "1883:1883"
+            - "9001:9001"
+        volumes:
+            - ./config:/mosquitto/config:rw
+            - ./data:/mosquitto/data:rw
+            - ./log:/mosquitto/log:rw
+        restart: unless-stopped
+
+networks:
+    default:
+        name: mqtt-network

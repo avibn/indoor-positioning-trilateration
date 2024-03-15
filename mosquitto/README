@@ -1,0 +1,7 @@
+First, Create empty file `passwd` in config/
+
+```
+docket-compose up
+docker exec -it <container-id> sh
+mosquitto_passwd -c /mosquitto/config/passwd <username>
+```
