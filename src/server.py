@@ -9,6 +9,7 @@ import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 
 from calc import get_position
+from filter import apply_kalman_filter, initialize_kalman_filter
 from utils import convert_string_to_datetime
 
 # Logging configuration
@@ -44,8 +45,15 @@ receiver_3 = deque(maxlen=10)
 
 # Todo:: remove
 # Test data
-receiver_2.append({"time": "2021-08-01 12:00:00", "address": "address_2", "rssi": -64})
-receiver_3.append({"time": "2021-08-01 12:00:00", "address": "address_3", "rssi": -64})
+# fmt: off
+receiver_2.append({"time": "2021-08-01 12:00:00", "address": "address_2", "rssi": -42, "filtered_rssi": -42})
+receiver_3.append({"time": "2021-08-01 12:00:00", "address": "address_3", "rssi": -42, "filtered_rssi": -42})
+# fmt: on
+
+# Initialize the Kalman filter for the 3 receivers
+kf1 = initialize_kalman_filter()
+kf2 = initialize_kalman_filter()
+kf3 = initialize_kalman_filter()
 
 
 # Event handlers
@@ -59,23 +67,28 @@ def on_connect(client, userdata, flags, return_code):
 
 
 def on_message(client, userdata, message):
-    # message (payload, topic, timestamp)
+    try:
+        # message (payload, topic, timestamp)
+        decoded_message = str(message.payload.decode("utf-8"))
+        response = json.loads(decoded_message)  # (time, address, rssi)
+        response["time"] = convert_string_to_datetime(response["time"])
 
-    decoded_message = str(message.payload.decode("utf-8"))
-    response = json.loads(decoded_message)  # (time, address, rssi)
-    response["time"] = convert_string_to_datetime(response["time"])
+        if message.topic == "receivers/1":
+            response["filtered_rssi"] = apply_kalman_filter(kf1, response["rssi"])
+            receiver_1.append(response)
+        elif message.topic == "receivers/2":
+            response["filtered_rssi"] = apply_kalman_filter(kf2, response["rssi"])
+            receiver_2.append(response)
+        elif message.topic == "receivers/3":
+            response["filtered_rssi"] = apply_kalman_filter(kf3, response["rssi"])
+            receiver_3.append(response)
+        else:
+            return logging.error("Unknown topic received: " + message.topic)
 
-    if message.topic == "receivers/1":
-        receiver_1.append(response)
-    elif message.topic == "receivers/2":
-        receiver_2.append(response)
-    elif message.topic == "receivers/3":
-        receiver_3.append(response)
-    else:
-        return logging.error("Unknown topic received: " + message.topic)
-
-    # todo: remove this
-    # logging.info("Current list 1: " + str(list(map(lambda x: x["rssi"], receiver_1))))
+        # logging.info("Current list 1: " + str(list(map(lambda x: x["rssi"], receiver_1))))
+        # logging.info("Current list 1: " + str(list(map(lambda x: x["filtered_rssi"], receiver_1))))
+    except Exception as e:
+        logging.error("Error processing message: " + str(e))
 
 
 # Assign event handlers
@@ -101,14 +114,14 @@ def process_values():
             time.sleep(5)
             continue
 
-        rssi_1 = receiver_1[-1]["rssi"]
-        rssi_2 = receiver_2[-1]["rssi"]
-        rssi_3 = receiver_3[-1]["rssi"]
+        rssi_1 = receiver_1[-1]["filtered_rssi"]
+        rssi_2 = receiver_2[-1]["filtered_rssi"]
+        rssi_3 = receiver_3[-1]["filtered_rssi"]
 
         position = get_position(
-            (0, 0),
-            (0, 10),
-            (10, 0),
+            (0, 2.2),
+            (3.2, 0),
+            (3.2, 3.1),
             rssi_1,
             rssi_2,
             rssi_3,
