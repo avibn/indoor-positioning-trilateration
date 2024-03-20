@@ -1,4 +1,4 @@
-def __rssi_to_distance(rssi, measured_power=-69, path_loss_exponent=2):
+def __rssi_to_distance(rssi, measured_power=-69, path_loss_exponent=1.8):
     """
     Converts RSSI (Received Signal Strength Indicator) to distance using the path loss model.
 
@@ -48,20 +48,22 @@ def __trilaterate(x1, y1, d1, x2, y2, d2, x3, y3, d3):
     return X, Y
 
 
-def __scale_coordinates(x, y, max_value=32):
+def __scale_coordinates(x, y, initial_x=10, initial_y=10, max_value=32):
     """
     Scale the given coordinates to fit within the specified max_value.
 
     Parameters:
     x (float): The x-coordinate to be scaled.
     y (float): The y-coordinate to be scaled.
+    initial_x (float): The initial upper bound for the x-coordinate. Default is 10.
+    initial_y (float): The initial upper bound for the y-coordinate. Default is 10.
     max_value (int): The maximum value for the scaled coordinates. Default is 32.
 
     Returns:
     tuple: A tuple containing the scaled x and y coordinates.
     """
-    scaled_x = int((x / 10) * max_value)
-    scaled_y = int((y / 10) * max_value)
+    scaled_x = int((x / initial_x) * max_value)  # todo:: CHANGE 10 to whatever
+    scaled_y = int((y / initial_y) * max_value)
 
     scaled_x = max(0, min(scaled_x, max_value - 1))
     scaled_y = max(0, min(scaled_y, max_value - 1))
@@ -92,6 +94,8 @@ def get_position(
     d2 = __rssi_to_distance(rssi_2)
     d3 = __rssi_to_distance(rssi_3)
 
+    print(f"Distances: {d1}, {d2}, {d3}")
+
     # Trilateration
     estimated_x, estimated_y = __trilaterate(
         bp_1[0],
@@ -104,9 +108,14 @@ def get_position(
         bp_3[1],
         d3,
     )
+    print(f"Actual Position:    ({estimated_x}, {estimated_y})")
+
+    # Get the maximum x and y coordinates to scale the estimated position
+    max_x = max(bp_1[0], bp_2[0], bp_3[0])
+    max_y = max(bp_1[1], bp_2[1], bp_3[1])
 
     # Scale the coordinates to fit within a 32x32 grid
-    scaled_x, scaled_y = __scale_coordinates(estimated_x, estimated_y)
+    scaled_x, scaled_y = __scale_coordinates(estimated_x, estimated_y, max_x, max_y)
 
     # Logging
     print(f"Estimated Position: ({scaled_x}, {scaled_y}) in a 32x32 grid")
@@ -115,14 +124,17 @@ def get_position(
 
 if __name__ == "__main__":
     # # RSSI values
-    # rssi_1 = -88
-    # rssi_2 = -86
-    # rssi_3 = -69
+    rssi_1 = -54
+    rssi_2 = -69
+    rssi_3 = -76
 
     # # Get estimated position
-    # x, y = get_position((0, 0), (0, 10), (10, 0), rssi_1, rssi_2, rssi_3)
-    # print(f"Estimated Position: ({x}, {y}) in a 32x32 grid")
+    # x, y = get_position((0, 10), (10, 0), (10, 10), rssi_1, rssi_2, rssi_3)
+    x, y = get_position((0, 2.2), (3.2, 0), (3.2, 3.1), rssi_1, rssi_2, rssi_3)
 
-    rssi = -40
-    d  = __rssi_to_distance(rssi) * 100
-    print(d)
+    # rssi = -62
+    # d = __rssi_to_distance(rssi)
+    # print(d)
+
+    # for i in range(-32, -82, -1):
+    #     print(f"{i}: {__rssi_to_distance(i)}")
