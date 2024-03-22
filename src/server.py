@@ -5,11 +5,13 @@ import threading
 import time
 from collections import deque
 
+import numpy as np
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 
 from calc import get_position
 from filter import apply_kalman_filter, initialize_kalman_filter
+from graph import animate
 from utils import convert_string_to_datetime
 
 # Logging configuration
@@ -67,6 +69,7 @@ def on_connect(client, userdata, flags, return_code):
 
 
 def on_message(client, userdata, message):
+    logging.info("Received message: " + str(message.payload))
     try:
         # message (payload, topic, timestamp)
         decoded_message = str(message.payload.decode("utf-8"))
@@ -96,6 +99,13 @@ client.on_connect = on_connect
 client.on_message = on_message
 
 
+# todo: take these as inputs
+receiver_1_pos = (0, 2.2)
+receiver_2_pos = (3.2, 0)
+receiver_3_pos = (3.2, 3.1)
+position = (0, 0)
+
+
 # code to process the rssi values in parallel
 def process_values():
     while True:
@@ -119,9 +129,9 @@ def process_values():
         rssi_3 = receiver_3[-1]["filtered_rssi"]
 
         position = get_position(
-            (0, 2.2),
-            (3.2, 0),
-            (3.2, 3.1),
+            receiver_1_pos,
+            receiver_2_pos,
+            receiver_3_pos,
             rssi_1,
             rssi_2,
             rssi_3,
@@ -129,6 +139,26 @@ def process_values():
         print(f"Estimated position: {position}")
 
         time.sleep(5)
+
+
+def run_graph():
+    # use receiver dequeue to get the latest distance values
+    # todo:: use __rssi_to_distance from calc.py to get the distances
+    base_stations = [
+        {"coords": receiver_1_pos, "distance": 1.5},
+        {"coords": receiver_2_pos, "distance": 1.5},
+        {"coords": receiver_3_pos, "distance": 1.5},
+    ]
+
+    get_updated_data = lambda: (
+        base_stations,
+        (
+            np.random.randint(0, 5),
+            np.random.randint(0, 5),
+        ),  # todo:: use `position` instead
+    )
+
+    animate(base_stations, (0, 0), get_updated_data)
 
 
 def run():
@@ -139,6 +169,10 @@ def run():
     threading.Thread(target=process_values, daemon=True).start()
 
     logging.info("Starting MQTT subscriber")
+    # Start the MQTT subscriber loop in a new thread
+    threading.Thread(target=client.loop_start, daemon=True).start()
+
+    run_graph()
     client.loop_forever()
 
 

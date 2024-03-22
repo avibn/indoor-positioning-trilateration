@@ -135,7 +135,8 @@ def animate(
             __plot_trilateration(new_base_stations, new_target)
 
     # Animate the plot with the update function
-    return FuncAnimation(fig, update, interval=interval, cache_frame_data=False)
+    animation = FuncAnimation(fig, update, interval=interval, cache_frame_data=False)
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -153,8 +154,7 @@ if __name__ == "__main__":
     )
 
     # Animation
-    animation = animate(base_stations, initial_target, get_updated_data)
-    plt.show()
+    animate(base_stations, initial_target, get_updated_data)
 
     # No animation:
     # __plot_trilateration(base_stations, initial_target)
