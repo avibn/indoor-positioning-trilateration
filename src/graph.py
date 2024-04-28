@@ -99,7 +99,7 @@ def __plot_trilateration(base_stations: list, target: tuple):
     # plt.tight_layout()
 
     plt.grid(True)
-    plt.legend()
+    # plt.legend()
     plt.title("Trilateration for Indoor Positioning")
 
 

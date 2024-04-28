@@ -9,7 +9,7 @@ import numpy as np
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 
-from calc import get_position
+from calc import TrilaterationController
 from filter import apply_kalman_filter, initialize_kalman_filter
 from graph import animate
 from utils import convert_string_to_datetime
@@ -19,6 +19,9 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+
+# State to stop the threads
+stop_threads = False
 
 # Load env variables from .env file
 load_dotenv()
@@ -45,11 +48,11 @@ receiver_1 = deque(maxlen=10)
 receiver_2 = deque(maxlen=10)
 receiver_3 = deque(maxlen=10)
 
-# Todo:: remove
 # Test data
 # fmt: off
-receiver_2.append({"time": "2021-08-01 12:00:00", "address": "address_2", "rssi": -42, "filtered_rssi": -42})
-receiver_3.append({"time": "2021-08-01 12:00:00", "address": "address_3", "rssi": -42, "filtered_rssi": -42})
+receiver_1.append({"time": "2021-08-01 12:00:00", "address": "address_1", "rssi": -42, "filtered_rssi": [-42]})
+receiver_2.append({"time": "2021-08-01 12:00:00", "address": "address_2", "rssi": -42, "filtered_rssi": [-42]})
+receiver_3.append({"time": "2021-08-01 12:00:00", "address": "address_3", "rssi": -42, "filtered_rssi": [-42]})
 # fmt: on
 
 # Initialize the Kalman filter for the 3 receivers
@@ -58,7 +61,25 @@ kf2 = initialize_kalman_filter()
 kf3 = initialize_kalman_filter()
 
 
-# Event handlers
+# todo: take these as inputs
+receiver_1_pos = (0, 2.2)
+receiver_2_pos = (3.2, 0)
+receiver_3_pos = (3.2, 3.1)
+position = (0, 0)
+
+# Initialize the trilateration controller
+locationEstimator = TrilaterationController(
+    bp_1=receiver_1_pos,
+    measured_power_1=-50,
+    bp_2=receiver_2_pos,
+    measured_power_2=-40,
+    bp_3=receiver_3_pos,
+    measured_power_3=-53,
+    path_loss_exponent=1.8,
+)
+
+
+# MQTT event handlers
 def on_connect(client, userdata, flags, return_code):
     if return_code != 0:
         return logging.info("could not connect, return code:", return_code)
@@ -69,13 +90,14 @@ def on_connect(client, userdata, flags, return_code):
 
 
 def on_message(client, userdata, message):
-    logging.info("Received message: " + str(message.payload))
+    logging.info(message.topic + " - Received message: " + str(message.payload))
     try:
         # message (payload, topic, timestamp)
         decoded_message = str(message.payload.decode("utf-8"))
         response = json.loads(decoded_message)  # (time, address, rssi)
         response["time"] = convert_string_to_datetime(response["time"])
 
+        # Apply Kalman filter to the RSSI values and store them
         if message.topic == "receivers/1":
             response["filtered_rssi"] = apply_kalman_filter(kf1, response["rssi"])
             receiver_1.append(response)
@@ -88,8 +110,6 @@ def on_message(client, userdata, message):
         else:
             return logging.error("Unknown topic received: " + message.topic)
 
-        # logging.info("Current list 1: " + str(list(map(lambda x: x["rssi"], receiver_1))))
-        # logging.info("Current list 1: " + str(list(map(lambda x: x["filtered_rssi"], receiver_1))))
     except Exception as e:
         logging.error("Error processing message: " + str(e))
 
@@ -99,24 +119,38 @@ client.on_connect = on_connect
 client.on_message = on_message
 
 
-# todo: take these as inputs
-receiver_1_pos = (0, 2.2)
-receiver_2_pos = (3.2, 0)
-receiver_3_pos = (3.2, 3.1)
-position = (0, 0)
-
-
-# code to process the rssi values in parallel
+# Process the rssi values in parallel
 def process_values():
-    while True:
-        if receiver_1:
+    global position
+
+    while not stop_threads:
+        if receiver_1 and receiver_2 and receiver_3:
             logging.info(
-                "**Latest value from receiver 1: " + str(receiver_1[-1]["rssi"])
+                "Latest Values: "
+                + " | ".join(
+                    map(
+                        str,
+                        [
+                            receiver_1[-1]["rssi"],
+                            receiver_2[-1]["rssi"],
+                            receiver_3[-1]["rssi"],
+                        ],
+                    )
+                )
             )
-        # if receiver_2:
-        #     logging.info("Latest value from receiver 2: " + str(receiver_2[-1]))
-        # if receiver_3:
-        #     logging.info("Latest value from receiver 3: " + str(receiver_3[-1]))
+            logging.info(
+                "Latest Filtered: "
+                + " | ".join(
+                    map(
+                        str,
+                        [
+                            receiver_1[-1]["filtered_rssi"],
+                            receiver_2[-1]["filtered_rssi"],
+                            receiver_3[-1]["filtered_rssi"],
+                        ],
+                    )
+                )
+            )
 
         # Calculate the estimated position
         if not (receiver_1 and receiver_2 and receiver_3):
@@ -124,56 +158,89 @@ def process_values():
             time.sleep(5)
             continue
 
-        rssi_1 = receiver_1[-1]["filtered_rssi"]
-        rssi_2 = receiver_2[-1]["filtered_rssi"]
-        rssi_3 = receiver_3[-1]["filtered_rssi"]
+        # print("Type of rssi_1: ", type(receiver_1[-1]["filtered_rssi"]))
+        rssi_1 = receiver_1[-1]["filtered_rssi"][0]
+        rssi_2 = receiver_2[-1]["filtered_rssi"][0]
+        rssi_3 = receiver_3[-1]["filtered_rssi"][0]
 
-        position = get_position(
-            receiver_1_pos,
-            receiver_2_pos,
-            receiver_3_pos,
-            rssi_1,
-            rssi_2,
-            rssi_3,
-        )
-        print(f"Estimated position: {position}")
+        # Update the position
+        position = locationEstimator.get_position(rssi_1, rssi_2, rssi_3)
+        logging.info(f"Estimated position: {position}")
 
         time.sleep(5)
 
 
 def run_graph():
-    # use receiver dequeue to get the latest distance values
-    # todo:: use __rssi_to_distance from calc.py to get the distances
-    base_stations = [
-        {"coords": receiver_1_pos, "distance": 1.5},
-        {"coords": receiver_2_pos, "distance": 1.5},
-        {"coords": receiver_3_pos, "distance": 1.5},
-    ]
+    def get_updated_data():
+        base_stations = [
+            {
+                "coords": receiver_1_pos,
+                "distance": locationEstimator.get_distance(
+                    receiver_1[-1]["filtered_rssi"][0], 1
+                ),
+            },
+            {
+                "coords": receiver_2_pos,
+                "distance": locationEstimator.get_distance(
+                    receiver_2[-1]["filtered_rssi"][0], 2
+                ),
+            },
+            {
+                "coords": receiver_3_pos,
+                "distance": locationEstimator.get_distance(
+                    receiver_3[-1]["filtered_rssi"][0], 3
+                ),
+            },
+        ]
+        return (
+            base_stations,
+            locationEstimator.trilaterate(
+                base_stations[0]["distance"],
+                base_stations[1]["distance"],
+                base_stations[2]["distance"],
+            ),
+        )
 
-    get_updated_data = lambda: (
-        base_stations,
-        (
-            np.random.randint(0, 5),
-            np.random.randint(0, 5),
-        ),  # todo:: use `position` instead
+    animate(
+        get_updated_data()[0],
+        (0, 0),
+        get_updated_data,
     )
-
-    animate(base_stations, (0, 0), get_updated_data)
 
 
 def run():
-    logging.info("Connecting to broker")
-    client.connect(host, port)
+    global stop_threads
 
-    # Start the processing thread
-    threading.Thread(target=process_values, daemon=True).start()
+    try:
+        logging.info("Connecting to broker")
+        client.connect(host, port)
 
-    logging.info("Starting MQTT subscriber")
-    # Start the MQTT subscriber loop in a new thread
-    threading.Thread(target=client.loop_start, daemon=True).start()
+        # Start the processing thread
+        logging.info("Starting processing thread")
+        processing_thread = threading.Thread(target=process_values, daemon=True)
+        processing_thread.start()
 
-    run_graph()
-    client.loop_forever()
+        # Start the MQTT subscriber loop in a new thread
+        logging.info("Starting MQTT subscriber")
+        mqtt_thread = threading.Thread(target=client.loop_forever, daemon=True)
+        mqtt_thread.start()
+
+        # Start the graph animation in the main thread
+        logging.info("Starting graph animation")
+        run_graph()
+
+    except KeyboardInterrupt:
+        logging.info("Gracefully stopping the program")
+
+        # Stop the threads
+        stop_threads = True
+        client.disconnect()
+        processing_thread.join()
+        mqtt_thread.join()
+        logging.info("Stopped.")
+
+        # Exit the program
+        exit(0)
 
 
 if __name__ == "__main__":
