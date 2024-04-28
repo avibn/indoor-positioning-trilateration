@@ -62,7 +62,7 @@ class TrilaterationController:
         estimated_x, estimated_y = self.trilaterate(d1, d2, d3)
 
         # Scale the coordinates to fit within a 32x32 grid
-        scaled_x, scaled_y = self.__scale_coordinates(estimated_x, estimated_y)
+        scaled_x, scaled_y = self.scale_coordinates(estimated_x, estimated_y)
 
         return scaled_x, scaled_y
 
@@ -127,7 +127,7 @@ class TrilaterationController:
 
         return 10 ** ((measured_power - rssi) / (10 * self.path_loss_exponent))
 
-    def __scale_coordinates(self, x: float, y: float) -> tuple:
+    def scale_coordinates(self, x: float, y: float) -> tuple:
         """
         Scale the given coordinates to fit within the specified max_value.
 

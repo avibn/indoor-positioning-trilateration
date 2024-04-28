@@ -4,7 +4,6 @@ from typing import List, Tuple
 
 from bleak import BleakScanner
 
-from calc import get_position
 from image import generate_image_payload
 from libs.bluetooth import Bluetooth
 
@@ -87,6 +86,7 @@ class Controller:
         """
         Disconnects from the Bluetooth device.
         """
+        print("Disconnecting from Bluetooth device...")
         await self.__bt.disconnect()
 
     def set_background(self, background: List[List[Tuple[int, int, int]]]):
@@ -111,6 +111,9 @@ class Controller:
         Returns:
             None
         """
+        # If float values are passed, convert them to integers
+        beacons = [(int(x), int(y)) for x, y in beacons]
+
         self.__beacons = beacons
 
 
@@ -119,13 +122,15 @@ if __name__ == "__main__":
     # bt.set_beacons([(0, 0), (0, 10), (10, 0)])
 
     # Set the background to look like a room with a bed and table
-    background = [
-        [(200, 200, 200) if i in [0, 31] or j in [0, 31] else (150, 75, 0) if 10 <= i <= 14 and 10 <= j <= 14 else (139, 69, 19) if 20 <= i <= 22 and 20 <= j <= 22 else (255, 255, 255) for j in range(32)] for i in range(32)  # fmt: skip
-    ]
-    bt.set_background(background)
+    # background = [
+    #     [(200, 200, 200) if i in [0, 31] or j in [0, 31] else (150, 75, 0) if 10 <= i <= 14 and 10 <= j <= 14 else (139, 69, 19) if 20 <= i <= 22 and 20 <= j <= 22 else (255, 255, 255) for j in range(32)] for i in range(32)  # fmt: skip
+    # ]
+
+    bt.set_beacons([(0, 0), (0, 31), (31, 0)])
 
     # Get position (example)
-    x, y = get_position((0, 0), (0, 10), (10, 0), -88, -86, -69)
+    # x, y = get_position((0, 0), (0, 10), (10, 0), -88, -86, -69)
+    x, y = 10, 10
 
     async def plot_position(x, y):
         for i in range(20):

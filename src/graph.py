@@ -6,6 +6,10 @@ from matplotlib.animation import FuncAnimation
 fig, ax = plt.subplots(figsize=(6, 6))
 
 
+def set_on_close(func):
+    fig.canvas.mpl_connect("close_event", func)
+
+
 def __plot_trilateration(base_stations: list, target: tuple):
     """
     Plot the trilateration graph for indoor positioning.

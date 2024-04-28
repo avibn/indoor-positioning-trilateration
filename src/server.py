@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -10,9 +11,17 @@ import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 
 from calc import TrilaterationController
+from controller import Controller
 from filter import apply_kalman_filter, initialize_kalman_filter
-from graph import animate
+from graph import animate, set_on_close
 from utils import convert_string_to_datetime
+
+RUN_PIXEL_DISPLAY = True  # Whether to run the pixel display
+GRAPH_REFRESH_INTERVAL = 2  # Refresh interval for the graph (seconds)
+DISPLAY_REFRESH_INTERVAL = 4  # Refresh interval for the pixe ldisplay (seconds)
+
+# Load env variables from .env file
+load_dotenv()
 
 # Logging configuration
 logging.basicConfig(
@@ -22,9 +31,6 @@ logging.basicConfig(
 
 # State to stop the threads
 stop_threads = False
-
-# Load env variables from .env file
-load_dotenv()
 
 # Environment variables
 host = os.getenv("MQTT_HOST")
@@ -118,38 +124,49 @@ def on_message(client, userdata, message):
 client.on_connect = on_connect
 client.on_message = on_message
 
+# Bluetooth controller
+if RUN_PIXEL_DISPLAY:
+    bt = Controller("DC:03:BB:B0:67:4A")
 
-# Process the rssi values in parallel
+    # Set the beacons on the display
+    bt.set_beacons(
+        [
+            locationEstimator.scale_coordinates(*receiver_1_pos),
+            locationEstimator.scale_coordinates(*receiver_2_pos),
+            locationEstimator.scale_coordinates(*receiver_3_pos),
+        ]
+    )
+
+    # Create a global event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    asyncio.set_event_loop(loop)
+
+    async def update_plot(x, y):
+        """
+        Update the plot with the given x and y values.
+
+        Parameters:
+        x (list): The x values for the plot.
+        y (list): The y values for the plot.
+
+        Returns:
+        None
+        """
+        logging.info("+++ Updating plot: " + str(x) + ", " + str(y))
+        await bt.plot(x, y)
+
+
 def process_values():
     global position
 
     while not stop_threads:
         if receiver_1 and receiver_2 and receiver_3:
             logging.info(
-                "Latest Values: "
-                + " | ".join(
-                    map(
-                        str,
-                        [
-                            receiver_1[-1]["rssi"],
-                            receiver_2[-1]["rssi"],
-                            receiver_3[-1]["rssi"],
-                        ],
-                    )
-                )
+                f"Latest Values: {' | '.join(str(receiver[-1]['rssi']) for receiver in [receiver_1, receiver_2, receiver_3])}"
             )
             logging.info(
-                "Latest Filtered: "
-                + " | ".join(
-                    map(
-                        str,
-                        [
-                            receiver_1[-1]["filtered_rssi"],
-                            receiver_2[-1]["filtered_rssi"],
-                            receiver_3[-1]["filtered_rssi"],
-                        ],
-                    )
-                )
+                f"Latest Filtered: {' | '.join(str(receiver[-1]['filtered_rssi']) for receiver in [receiver_1, receiver_2, receiver_3])}"
             )
 
         # Calculate the estimated position
@@ -158,7 +175,6 @@ def process_values():
             time.sleep(5)
             continue
 
-        # print("Type of rssi_1: ", type(receiver_1[-1]["filtered_rssi"]))
         rssi_1 = receiver_1[-1]["filtered_rssi"][0]
         rssi_2 = receiver_2[-1]["filtered_rssi"][0]
         rssi_3 = receiver_3[-1]["filtered_rssi"][0]
@@ -167,7 +183,11 @@ def process_values():
         position = locationEstimator.get_position(rssi_1, rssi_2, rssi_3)
         logging.info(f"Estimated position: {position}")
 
-        time.sleep(5)
+        # Update the display
+        if RUN_PIXEL_DISPLAY:
+            loop.run_until_complete(update_plot(position[0], position[1]))
+
+        time.sleep(DISPLAY_REFRESH_INTERVAL)
 
 
 def run_graph():
@@ -205,6 +225,7 @@ def run_graph():
         get_updated_data()[0],
         (0, 0),
         get_updated_data,
+        interval=GRAPH_REFRESH_INTERVAL * 1000,
     )
 
 
@@ -225,19 +246,35 @@ def run():
         mqtt_thread = threading.Thread(target=client.loop_forever, daemon=True)
         mqtt_thread.start()
 
+        # Set on graph close (raise KeyboardInterrupt)
+        # todo:: fix this
+        def on_close(event):
+            logging.info("Closing graph")
+
+        set_on_close(on_close)
+
         # Start the graph animation in the main thread
         logging.info("Starting graph animation")
         run_graph()
 
     except KeyboardInterrupt:
-        logging.info("Gracefully stopping the program")
+        logging.info("Gracefully shutting down...")
 
         # Stop the threads
         stop_threads = True
         client.disconnect()
+        logging.info("MQTT disconnected.")
+
         processing_thread.join()
+        logging.info("Processing (display) thread stopped.")
+
         mqtt_thread.join()
-        logging.info("Stopped.")
+        logging.info("MQTT thread stopped.")
+
+        # Stop bt
+        if RUN_PIXEL_DISPLAY:
+            loop.run_until_complete(bt.disconnect())
+            logging.info("Bluetooth disconnected.")
 
         # Exit the program
         exit(0)
