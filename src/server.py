@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 from calc import TrilaterationController
 from controller import Controller
+from environment import *
 from filter import apply_kalman_filter, initialize_kalman_filter
 from graph import animate, set_on_close
 from utils import convert_string_to_datetime
@@ -67,21 +68,15 @@ kf2 = initialize_kalman_filter()
 kf3 = initialize_kalman_filter()
 
 
-# todo: take these as inputs
-receiver_1_pos = (0, 2.2)
-receiver_2_pos = (3.2, 0)
-receiver_3_pos = (3.2, 3.1)
-position = (0, 0)
-
 # Initialize the trilateration controller
 locationEstimator = TrilaterationController(
-    bp_1=receiver_1_pos,
-    measured_power_1=-50,
-    bp_2=receiver_2_pos,
-    measured_power_2=-40,
-    bp_3=receiver_3_pos,
-    measured_power_3=-53,
-    path_loss_exponent=1.8,
+    bp_1=RECEIVER_1_POS,
+    bp_2=RECEIVER_2_POS,
+    bp_3=RECEIVER_3_POS,
+    measured_power_1=RECEIVER_1_TX_POWER,
+    measured_power_2=RECEIVER_2_TX_POWER,
+    measured_power_3=RECEIVER_3_TX_POWER,
+    path_loss_exponent=PATH_LOSS_EXPONENT,
 )
 
 
@@ -131,9 +126,9 @@ if RUN_PIXEL_DISPLAY:
     # Set the beacons on the display
     bt.set_beacons(
         [
-            locationEstimator.scale_coordinates(*receiver_1_pos),
-            locationEstimator.scale_coordinates(*receiver_2_pos),
-            locationEstimator.scale_coordinates(*receiver_3_pos),
+            locationEstimator.scale_coordinates(*RECEIVER_1_POS),
+            locationEstimator.scale_coordinates(*RECEIVER_2_POS),
+            locationEstimator.scale_coordinates(*RECEIVER_3_POS),
         ]
     )
 
@@ -158,8 +153,6 @@ if RUN_PIXEL_DISPLAY:
 
 
 def process_values():
-    global position
-
     while not stop_threads:
         if receiver_1 and receiver_2 and receiver_3:
             logging.info(
@@ -194,19 +187,19 @@ def run_graph():
     def get_updated_data():
         base_stations = [
             {
-                "coords": receiver_1_pos,
+                "coords": RECEIVER_1_POS,
                 "distance": locationEstimator.get_distance(
                     receiver_1[-1]["filtered_rssi"][0], 1
                 ),
             },
             {
-                "coords": receiver_2_pos,
+                "coords": RECEIVER_2_POS,
                 "distance": locationEstimator.get_distance(
                     receiver_2[-1]["filtered_rssi"][0], 2
                 ),
             },
             {
-                "coords": receiver_3_pos,
+                "coords": RECEIVER_3_POS,
                 "distance": locationEstimator.get_distance(
                     receiver_3[-1]["filtered_rssi"][0], 3
                 ),
