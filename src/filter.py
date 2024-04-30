@@ -1,6 +1,8 @@
 import numpy as np
 from filterpy.kalman import KalmanFilter
 
+UNCERTAINTY = 17
+
 
 def initialize_kalman_filter():
     # Initialize the Kalman Filter
@@ -9,7 +11,7 @@ def initialize_kalman_filter():
     kf.F = np.array([[1.0]])  # state transition matrix
     kf.H = np.array([[1.0]])  # Measurement function
     kf.P *= 1000.0  # covariance matrix
-    kf.R = 5  # state uncertainty
+    kf.R = UNCERTAINTY  # state uncertainty
     return kf
 
 

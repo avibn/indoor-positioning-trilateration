@@ -51,9 +51,9 @@ client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1, "SubscriberClient")
 client.username_pw_set(username, password)
 
 # Stores for messages (max length 10 - removes old values when full)
-receiver_1 = deque(maxlen=10)
-receiver_2 = deque(maxlen=10)
-receiver_3 = deque(maxlen=10)
+receiver_1 = deque(maxlen=20)
+receiver_2 = deque(maxlen=20)
+receiver_3 = deque(maxlen=20)
 
 # Test data
 # fmt: off
@@ -212,6 +212,9 @@ def run_graph():
                 base_stations[1]["distance"],
                 base_stations[2]["distance"],
             ),
+            list(receiver_1),
+            list(receiver_2),
+            list(receiver_3),
         )
 
     animate(
