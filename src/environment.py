@@ -9,11 +9,11 @@ RECEIVER_1_TX_POWER = -45
 
 # Receiver 2
 RECEIVER_2_POS = (3.2, 0)
-RECEIVER_2_TX_POWER = -48
+RECEIVER_2_TX_POWER = -46
 
 # Receiver 3
 RECEIVER_3_POS = (3.2, 3.1)
-RECEIVER_3_TX_POWER = -43
+RECEIVER_3_TX_POWER = -40
 
 # Constants
 PATH_LOSS_EXPONENT = 1.8  # Path loss exponent (typically between 2 and 4)
