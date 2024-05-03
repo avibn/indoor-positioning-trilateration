@@ -163,6 +163,8 @@ cython_debug/
 testing
 report.docx
 ~$report.docx
+report.pdf
+final
 
 # Any temp files
 *.tmp
